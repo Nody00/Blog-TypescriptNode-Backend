@@ -3,6 +3,7 @@ import postModel from "../models/postModel.js";
 import userModel from "../models/userModel.js";
 import commentModel from "../models/commentModel.js";
 import { Schema } from "mongoose";
+import { validationResult } from "express-validator";
 
 interface Error {
   message: string;
@@ -21,7 +22,81 @@ interface Error {
 //   comments: Schema.Types.ObjectId[];
 // }
 
+export const getAllPosts: RequestHandler = (req, res, next) => {
+  postModel
+    .find()
+    .then((result) => {
+      if (!result) {
+        const error: Error = {
+          statusCode: 404,
+          message: "Could not fetch posts",
+        };
+        throw error;
+      }
+
+      res.status(200).json({ message: "Posts fetched", posts: result });
+    })
+    .catch((err) => {
+      if (!err.statusCode) {
+        err.statusCode = 500;
+      }
+      next(err);
+    });
+};
+
+export const getPost: RequestHandler = (req, res, next) => {
+  const postId = req.params.postId;
+  postModel
+    .findById(postId)
+    .then((result) => {
+      if (!result) {
+        const error: Error = {
+          statusCode: 404,
+          message: "Could not fetch post",
+        };
+        throw error;
+      }
+
+      res.status(200).json({ message: "Post fetched", post: result });
+    })
+    .catch((err) => {
+      if (!err.statusCode) {
+        err.statusCode = 500;
+      }
+      next(err);
+    });
+};
+
+export const getUserPosts: RequestHandler = (req, res, next) => {
+  const userId = req.params.userId;
+  postModel
+    .find({ author: userId })
+    .then((result) => {
+      if (!result) {
+        const error: Error = {
+          statusCode: 404,
+          message: "Could not fetch posts",
+        };
+        throw error;
+      }
+
+      res.status(200).json({ message: "Posts fetched", posts: result });
+    })
+    .catch((err) => {
+      if (!err.statusCode) {
+        err.statusCode = 500;
+      }
+      next(err);
+    });
+};
+
 export const addNewPost: RequestHandler = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res
+      .status(422)
+      .json({ message: "Validation failed", errors: errors.array() });
+  }
   const title = req.body.title;
   const content = req.body.content;
   const images = req.body.images;
@@ -112,6 +187,12 @@ export const deletePost: RequestHandler = (req, res, next) => {
 };
 
 export const editPost: RequestHandler = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res
+      .status(422)
+      .json({ message: "Validation failed", errors: errors.array() });
+  }
   const postId = req.params.postId;
   const userId = req.body.userId;
   const title = req.body.title;
@@ -148,6 +229,12 @@ export const editPost: RequestHandler = (req, res, next) => {
 };
 
 export const addComment: RequestHandler = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res
+      .status(422)
+      .json({ message: "Validation failed", errors: errors.array() });
+  }
   const postId = req.params.postId;
   const userId = req.body.userId;
   const content = req.body.content;
@@ -207,6 +294,12 @@ export const deleteComment: RequestHandler = (req, res, next) => {
 };
 
 export const editComment: RequestHandler = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res
+      .status(422)
+      .json({ message: "Validation failed", errors: errors.array() });
+  }
   const commentId = req.params.commentId;
   const userId = req.body.userId;
   const newContent = req.body.content;
