@@ -27,6 +27,10 @@ const postSchema = new Schema({
     ref: "User",
     required: true,
   },
+  authorEmail: {
+    type: String,
+    required: true,
+  },
   images: [
     {
       type: String,

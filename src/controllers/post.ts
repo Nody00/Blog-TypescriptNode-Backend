@@ -90,7 +90,7 @@ export const getUserPosts: RequestHandler = (req, res, next) => {
     });
 };
 
-export const addNewPost: RequestHandler = (req, res, next) => {
+export const addNewPost: RequestHandler = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res
@@ -101,6 +101,19 @@ export const addNewPost: RequestHandler = (req, res, next) => {
   const content = req.body.content;
   const images = req.body.images;
   const userId = req.body.userId;
+  let authorEmail;
+
+  const user = await userModel.findById(userId);
+
+  if (!user) {
+    const error: Error = {
+      message: "User does not exist",
+      statusCode: 406,
+    };
+    throw error;
+  }
+
+  authorEmail = user.email;
 
   const newPost = new postModel({
     title: title,
@@ -110,6 +123,7 @@ export const addNewPost: RequestHandler = (req, res, next) => {
     likes: 0,
     dislikes: 0,
     favourites: 0,
+    authorEmail: authorEmail,
   });
   let savedPost: any;
   newPost
