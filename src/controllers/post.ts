@@ -4,7 +4,7 @@ import userModel from "../models/userModel.js";
 import commentModel from "../models/commentModel.js";
 import { Schema } from "mongoose";
 import { validationResult } from "express-validator";
-
+import { ioObject } from "../index.js";
 interface Error {
   message: string;
   statusCode: number;
@@ -44,10 +44,27 @@ export const getAllPosts: RequestHandler = (req, res, next) => {
     });
 };
 
+export const searchPosts: RequestHandler = (req, res, next) => {
+  const filter = req.body.filter;
+
+  postModel
+    .find({ content: { $regex: filter } })
+    .then((results) => {
+      res.json({ result: results });
+    })
+    .catch((err) => {
+      if (!err.statusCode) {
+        err.statusCode = 500;
+      }
+      next(err);
+    });
+};
+
 export const getPost: RequestHandler = (req, res, next) => {
   const postId = req.params.postId;
   postModel
     .findById(postId)
+    .populate("comments")
     .then((result) => {
       if (!result) {
         const error: Error = {
@@ -140,10 +157,14 @@ export const addNewPost: RequestHandler = async (req, res, next) => {
         };
         throw error;
       }
-      user.posts.push(savedPost._id);
+      user.posts.unshift(savedPost._id);
       return user.save();
     })
     .then((result) => {
+      ioObject.emit("posts", {
+        newPost: savedPost,
+        action: "new",
+      });
       res.status(200).json({ result: result });
     })
     .catch((err) => {
@@ -188,9 +209,25 @@ export const deletePost: RequestHandler = (req, res, next) => {
       return user.save();
     })
     .then((result) => {
-      res
-        .status(200)
-        .json({ message: "Post deleted successfully", result: result });
+      return commentModel.find({ post: postId });
+    })
+    .then((comments) => {
+      if (!comments) {
+        const error: Error = {
+          message: "User does not exist",
+          statusCode: 406,
+        };
+        throw error;
+      }
+
+      comments.forEach((comment) => comment.deleteOne());
+
+      ioObject.emit("posts", {
+        deletedId: postId,
+        action: "delete",
+      });
+
+      res.status(200).json({ message: "Post deleted successfully" });
     })
     .catch((err) => {
       if (!err.statusCode) {
@@ -232,6 +269,10 @@ export const editPost: RequestHandler = (req, res, next) => {
       return post.save();
     })
     .then((result) => {
+      ioObject.emit("posts", {
+        editedPost: result,
+        action: "edit",
+      });
       res.status(200).json({ message: "Post edited!", result: result });
     })
     .catch((err) => {
@@ -251,11 +292,12 @@ export const addComment: RequestHandler = (req, res, next) => {
   }
   const postId = req.params.postId;
   const userId = req.body.userId;
+  const email = req.body.email;
   const content = req.body.content;
 
   // add new comment
   const newComment = new commentModel({
-    author: userId,
+    author: email,
     post: postId,
     content: content,
     likes: 0,
@@ -279,7 +321,14 @@ export const addComment: RequestHandler = (req, res, next) => {
       post.comments.push(newComment._id);
       return post.save();
     })
+    .then((savedPost) => {
+      return savedPost.populate("comments");
+    })
     .then((result) => {
+      ioObject.emit("posts", {
+        postWithNewComment: result,
+        action: "newComment",
+      });
       res.status(200).json({ message: "Comment added", result: result });
     })
     .catch((err) => {
@@ -292,11 +341,26 @@ export const addComment: RequestHandler = (req, res, next) => {
 
 export const deleteComment: RequestHandler = (req, res, next) => {
   const commentId = req.params.commentId;
-  const userId = req.body.userId;
+  const email = req.body.email;
 
   commentModel
-    .findOneAndDelete({ _id: commentId, author: userId })
+    .findOne({ _id: commentId, author: email })
+    .then((comment) => {
+      if (!comment) {
+        const error: Error = {
+          statusCode: 404,
+          message: "Could not fetch post",
+        };
+        throw error;
+      }
+
+      return comment.deleteOne();
+    })
     .then((result) => {
+      ioObject.emit("posts", {
+        commentIdDelete: commentId,
+        action: "deleteComment",
+      });
       res.status(200).json({ message: "Comment deleted", result: result });
     })
     .catch((err) => {
@@ -315,15 +379,29 @@ export const editComment: RequestHandler = (req, res, next) => {
       .json({ message: "Validation failed", errors: errors.array() });
   }
   const commentId = req.params.commentId;
-  const userId = req.body.userId;
+  const email = req.body.email;
   const newContent = req.body.content;
 
   commentModel
-    .findOneAndUpdate(
-      { _id: commentId, author: userId },
-      { content: newContent }
-    )
+    .findOne({ _id: commentId, author: email })
+    .then((comment) => {
+      if (!comment) {
+        const error: Error = {
+          statusCode: 404,
+          message: "Could not fetch post",
+        };
+        throw error;
+      }
+
+      comment.content = newContent;
+
+      return comment.save();
+    })
     .then((result) => {
+      ioObject.emit("posts", {
+        commentLiked: result,
+        action: "likeComment",
+      });
       res.status(200).json({ message: "Comment updated" });
     })
     .catch((err) => {
@@ -536,6 +614,10 @@ export const likeComment: RequestHandler = (req, res, next) => {
       return loadedComment.save();
     })
     .then((result) => {
+      ioObject.emit("posts", {
+        commentLiked: loadedComment,
+        action: "likeComment",
+      });
       res.status(200).json({ message: "Comment liked", result: result });
     })
     .catch((err) => {
@@ -608,6 +690,10 @@ export const dislikeComment: RequestHandler = (req, res, next) => {
       return loadedComment.save();
     })
     .then((result) => {
+      ioObject.emit("posts", {
+        commentLiked: loadedComment,
+        action: "likeComment",
+      });
       res.status(200).json({ message: "Post disliked", result: result });
     })
     .catch((err) => {

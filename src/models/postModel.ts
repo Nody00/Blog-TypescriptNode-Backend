@@ -14,6 +14,7 @@ const postSchema = new Schema({
     type: Number,
     required: true,
   },
+
   dislikes: {
     type: Number,
     required: true,

@@ -14,12 +14,16 @@ import {
   getAllPosts,
   getPost,
   getUserPosts,
+  searchPosts,
 } from "../controllers/post.js";
 import { isAuth } from "../helpers/isAuth.js";
 const router = express.Router();
 
 // Get all posts
 router.get("/all", getAllPosts);
+
+// Search posts
+router.post("/search", searchPosts);
 
 // Get specific post
 router.get("/:postId", getPost);
@@ -36,7 +40,7 @@ router.post(
 );
 
 // Delete a post
-router.delete("/delete/:postId", isAuth, deletePost);
+router.post("/delete/:postId", isAuth, deletePost);
 
 // Edit a post
 router.post(
@@ -63,7 +67,7 @@ router.post(
 );
 
 // Delete comment
-router.delete("/comment/delete/:commentId", isAuth, deleteComment);
+router.post("/comment/delete/:commentId", isAuth, deleteComment);
 
 // Like a post
 router.post("/like/:postId", isAuth, likePost);
