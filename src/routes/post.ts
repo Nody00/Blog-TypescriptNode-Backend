@@ -15,6 +15,7 @@ import {
   getPost,
   getUserPosts,
   searchPosts,
+  getUserData,
 } from "../controllers/post.js";
 import { isAuth } from "../helpers/isAuth.js";
 const router = express.Router();
@@ -80,5 +81,8 @@ router.post("/like/comment/:commentId", isAuth, likeComment);
 
 // dislike a comment
 router.post("/dislike/comment/:commentId", isAuth, dislikeComment);
+
+// get user data
+router.get("/getData/:userId", getUserData);
 
 export default router;

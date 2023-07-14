@@ -5,6 +5,7 @@ import commentModel from "../models/commentModel.js";
 import { Schema } from "mongoose";
 import { validationResult } from "express-validator";
 import { ioObject } from "../index.js";
+import { resourceLimits } from "worker_threads";
 interface Error {
   message: string;
   statusCode: number;
@@ -34,7 +35,9 @@ export const getAllPosts: RequestHandler = (req, res, next) => {
         throw error;
       }
 
-      res.status(200).json({ message: "Posts fetched", posts: result });
+      res
+        .status(200)
+        .json({ message: "Posts fetched", posts: result.reverse() });
     })
     .catch((err) => {
       if (!err.statusCode) {
@@ -141,6 +144,8 @@ export const addNewPost: RequestHandler = async (req, res, next) => {
     dislikes: 0,
     favourites: 0,
     authorEmail: authorEmail,
+    dislikedBy: new Map(),
+    likedBy: new Map(),
   });
   let savedPost: any;
   newPost
@@ -429,9 +434,6 @@ export const likePost: RequestHandler = (req, res, next) => {
       }
 
       loadedPost = post;
-      return post.save();
-    })
-    .then((result) => {
       return userModel.findOne({ _id: userId });
     })
     .then((user) => {
@@ -443,6 +445,10 @@ export const likePost: RequestHandler = (req, res, next) => {
         throw error;
       }
 
+      const existingDislikedUser = loadedPost.dislikedBy.get(userId);
+
+      const existingLikedUser = loadedPost.likedBy.get(userId);
+
       // post already disliked
       const existingDislikedPostIndex = user.dislikedPosts.findIndex(
         (e) => e.toString() === loadedPost._id.toString()
@@ -453,26 +459,33 @@ export const likePost: RequestHandler = (req, res, next) => {
         (e) => e.toString() === loadedPost._id.toString()
       );
 
-      if (existingDislikedPostIndex !== -1) {
+      if (existingDislikedPostIndex !== -1 && existingDislikedUser === "") {
         user.dislikedPosts.splice(existingDislikedPostIndex, 1);
+        loadedPost.dislikedBy.delete(userId);
         loadedPost.dislikes =
           loadedPost.dislikes === 0 ? 0 : loadedPost.dislikes - 1;
       }
 
-      if (existinglikedPostIndex !== -1) {
+      if (existinglikedPostIndex !== -1 && existingLikedUser === "") {
         user.likedPosts.splice(existinglikedPostIndex, 1);
+        loadedPost.likedBy.delete(userId);
         loadedPost.likes = loadedPost.likes === 0 ? 0 : loadedPost.likes - 1;
         return user.save();
       }
 
       user.likedPosts.push(loadedPost._id);
       loadedPost.likes = loadedPost.likes + 1;
+      loadedPost.likedBy.set(userId, "");
       return user.save();
     })
     .then((userSaved) => {
       return loadedPost.save();
     })
     .then((result) => {
+      ioObject.emit("posts", {
+        id: result._id.toString(),
+        action: "liked",
+      });
       res.status(200).json({ message: "Post liked", result: result });
     })
     .catch((err) => {
@@ -513,6 +526,10 @@ export const dislikePost: RequestHandler = (req, res, next) => {
         throw error;
       }
 
+      const existingDislikedUser = loadedPost.dislikedBy.get(userId);
+
+      const existingLikedUser = loadedPost.likedBy.get(userId);
+
       // post already disliked
       const existingDislikedPostIndex: number = user.dislikedPosts.findIndex(
         (e) => e.toString() === loadedPost._id.toString()
@@ -523,19 +540,22 @@ export const dislikePost: RequestHandler = (req, res, next) => {
         (e) => e.toString() === loadedPost._id.toString()
       );
 
-      if (existingDislikedPostIndex !== -1) {
+      if (existingDislikedPostIndex !== -1 || existingDislikedUser === "") {
         user.dislikedPosts.splice(existingDislikedPostIndex, 1);
+        loadedPost.dislikedBy.delete(userId);
         loadedPost.dislikes =
           loadedPost.dislikes === 0 ? 0 : loadedPost.dislikes - 1;
         return user.save();
       }
 
-      if (existinglikedPostIndex !== -1) {
+      if (existinglikedPostIndex !== -1 || existingLikedUser === "") {
         user.likedPosts.splice(existinglikedPostIndex, 1);
+        loadedPost.likedBy.delete(userId);
         loadedPost.likes = loadedPost.likes === 0 ? 0 : loadedPost.likes - 1;
       }
 
       user.dislikedPosts.push(loadedPost._id);
+      loadedPost.dislikedBy.set(userId, "");
       loadedPost.dislikes = loadedPost.dislikes + 1;
       return user.save();
     })
@@ -543,6 +563,10 @@ export const dislikePost: RequestHandler = (req, res, next) => {
       return loadedPost.save();
     })
     .then((result) => {
+      ioObject.emit("posts", {
+        id: result._id.toString(),
+        action: "disliked",
+      });
       res.status(200).json({ message: "Post disliked", result: result });
     })
     .catch((err) => {
@@ -695,6 +719,25 @@ export const dislikeComment: RequestHandler = (req, res, next) => {
         action: "likeComment",
       });
       res.status(200).json({ message: "Post disliked", result: result });
+    })
+    .catch((err) => {
+      if (!err.statusCode) {
+        err.statusCode = 500;
+      }
+      next(err);
+    });
+};
+
+export const getUserData: RequestHandler = async (req, res, next) => {
+  const userId = req.params.userId;
+
+  console.log(userId);
+
+  userModel
+    .findById(userId)
+    .populate("posts likedComments dislikedComments likedPosts dislikedPosts")
+    .then((userData) => {
+      res.status(200).json(userData);
     })
     .catch((err) => {
       if (!err.statusCode) {

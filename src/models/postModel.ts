@@ -14,7 +14,6 @@ const postSchema = new Schema({
     type: Number,
     required: true,
   },
-
   dislikes: {
     type: Number,
     required: true,
@@ -43,6 +42,14 @@ const postSchema = new Schema({
       ref: "Comment",
     },
   ],
+  likedBy: {
+    type: Map,
+    required: true,
+  },
+  dislikedBy: {
+    type: Map,
+    required: true,
+  },
 });
 
 export default mongoose.model("Post", postSchema);

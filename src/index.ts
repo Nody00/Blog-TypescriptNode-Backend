@@ -39,9 +39,9 @@ mongoose
     const server = app.listen(8080);
     const io = socket.init(server);
     ioObject = io;
-    io.on("connection", (socket: any) => {
-      console.log("new user");
-    });
+    // io.on("connection", (socket: any) => {
+    //   console.log("new user");
+    // });
   })
   .catch((err) => {
     console.log(err);
