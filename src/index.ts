@@ -3,7 +3,7 @@ import authRouter from "./routes/auth.js";
 import postRouter from "./routes/post.js";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import { Server } from "socket.io";
+
 import socket from "./socket.js";
 
 export let ioObject: any;
@@ -33,10 +33,12 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 mongoose
   .connect(
-    "mongodb+srv://dinokrcic2077:cSzJILiPQ8usDHAc@cluster0.c6rbyhf.mongodb.net/?retryWrites=true&w=majority"
+    `mongodb+srv://${process.env.MONGO_USERNAME || "dinokrcic2077"}:${
+      process.env.MONGO_PASSWORD || "cSzJILiPQ8usDHAc"
+    }@cluster0.c6rbyhf.mongodb.net/?retryWrites=true&w=majority`
   )
   .then((result) => {
-    const server = app.listen(8080);
+    const server = app.listen(process.env.PORT || 8080);
     const io = socket.init(server);
     ioObject = io;
     // io.on("connection", (socket: any) => {

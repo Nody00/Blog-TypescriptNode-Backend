@@ -31,7 +31,10 @@ export const isAuth: RequestHandler = (req, res, next) => {
 
   let decodedToken;
   try {
-    decodedToken = jwt.verify(token, "supersecretkey");
+    decodedToken = jwt.verify(
+      token,
+      process.env.SECRET_KEY || "supersecretkey"
+    );
   } catch (err) {
     throw err;
   }

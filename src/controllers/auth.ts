@@ -6,7 +6,6 @@ import commentModel from "../models/commentModel.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import postModel from "../models/postModel.js";
-import { accessSync } from "fs";
 
 export const login: RequestHandler = (req, res, next) => {
   const errors = validationResult(req);
@@ -50,7 +49,7 @@ export const login: RequestHandler = (req, res, next) => {
           email: loadedUser.email,
           userId: loadedUser._id.toString(),
         },
-        "supersecretkey",
+        process.env.SECRET_KEY || "supersecretkey",
         {
           expiresIn: "3h",
         }
