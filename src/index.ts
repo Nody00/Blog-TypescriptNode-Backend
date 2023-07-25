@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import authRouter from "./routes/auth.js";
 import postRouter from "./routes/post.js";
+import chatRouter from "./routes/chat.js";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
 
@@ -26,6 +27,7 @@ app.use((req, res, next) => {
 
 app.use("/auth", authRouter);
 app.use("/post", postRouter);
+app.use("/chat", chatRouter);
 
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: true, errorObject: err });
