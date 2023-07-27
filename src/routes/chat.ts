@@ -16,8 +16,8 @@ router.post(
   "/newChat",
   isAuth,
   [
-    body("userId1").notEmpty().escape().trim(),
-    body("userId2").notEmpty().escape().trim(),
+    body("userEmail1").notEmpty().escape().trim().isEmail(),
+    body("userEmail2").notEmpty().escape().trim().isEmail(),
   ],
   createNewChat
 );
@@ -31,7 +31,7 @@ router.post(
   isAuth,
   [
     body("userId").notEmpty().escape().trim(),
-    body("message").notEmpty().escape().trim(),
+    body("message").notEmpty().escape().trim().isLength({ max: 200 }),
     body("chatId").notEmpty().escape().trim(),
   ],
   addNewMessage
@@ -51,8 +51,6 @@ router.post(
 // route for getting a chat
 router.post("/getChat/:chatId", isAuth, getChat);
 
-export default router;
-
 // route for getting all chats
 router.post(
   "/getAllChats",
@@ -60,3 +58,5 @@ router.post(
   [body("userId").notEmpty().escape().trim()],
   getAllChats
 );
+
+export default router;

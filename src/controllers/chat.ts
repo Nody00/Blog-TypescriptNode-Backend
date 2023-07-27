@@ -3,6 +3,7 @@ import { Error } from "../index.js";
 import { validationResult } from "express-validator/src/validation-result.js";
 import chatModel from "../models/chatModel.js";
 import messageModel from "../models/messageModel.js";
+import userModel from "../models/userModel.js";
 
 export const createNewChat: RequestHandler = async (req, res, next) => {
   const errors = validationResult(req);
@@ -13,15 +14,49 @@ export const createNewChat: RequestHandler = async (req, res, next) => {
   }
 
   try {
-    const userId1 = req.body.userId1;
-    const userId2 = req.body.userId2;
+    const userEmail1 = req.body.userEmail1;
+    const userEmail2 = req.body.userEmail2;
 
-    const newChat = new chatModel({
-      participants: [userId1, userId2],
-      messages: [],
+    const existingChat = await chatModel.findOne({
+      $and: [
+        { partisipantEmails: userEmail1 },
+        { partisipantEmails: userEmail2 },
+      ],
     });
 
+    // console.log(existingChat);
+
+    if (existingChat) {
+      const error: Error = {
+        message: "You already have a chat with that user!",
+        statusCode: 404,
+      };
+      throw error;
+    }
+
+    const user1: any = await userModel.find({ email: userEmail1 });
+    const user2: any = await userModel.find({ email: userEmail2 });
+
+    if (!user1 || !user2) {
+      const error: Error = {
+        message: "No such user!",
+        statusCode: 404,
+      };
+      throw error;
+    }
+
+    const newChat = new chatModel({
+      partisipantEmails: [userEmail1, userEmail2],
+      partisipantUsernames: [user1[0].username, user2[0].username],
+      messages: [],
+    });
     const result = await newChat.save();
+
+    user1[0].chats.push(result._id);
+    user2[0].chats.push(result._id);
+
+    await user1[0].save();
+    await user2[0].save();
 
     res.status(200).json({ message: "New chat created" });
   } catch (err: any) {
@@ -36,7 +71,52 @@ export const deleteChat: RequestHandler = async (req, res, next) => {
   const chatId = req.params.chatId;
 
   try {
-    const result = await chatModel.findByIdAndDelete(chatId);
+    const result = await chatModel.findById(chatId);
+
+    if (!result) {
+      const error: Error = {
+        message: "No such chat exists",
+        statusCode: 404,
+      };
+      throw error;
+    }
+
+    const user1 = await userModel.findOne({
+      email: result?.partisipantEmails[0],
+    });
+    const user2 = await userModel.findOne({
+      email: result?.partisipantEmails[1],
+    });
+
+    if (!user1 || !user2) {
+      const error: Error = {
+        message: "No such user!",
+        statusCode: 404,
+      };
+      throw error;
+    }
+
+    const chatIndex1 = user1.chats.findIndex(
+      (e) => e._id.toString() === chatId
+    );
+    const chatIndex2 = user2.chats.findIndex(
+      (e) => e._id.toString() === chatId
+    );
+
+    if (chatIndex1 === -1 || chatIndex2 === -1) {
+      const error: Error = {
+        message: "Chat does not exist in user model!",
+        statusCode: 404,
+      };
+      throw error;
+    }
+
+    user1.chats.splice(chatIndex1, 1);
+    user2.chats.splice(chatIndex2, 1);
+
+    await user1.save();
+    await user2.save();
+    await result.deleteOne();
 
     res.status(200).json({ message: "Chat Deleted" });
   } catch (err: any) {
@@ -82,7 +162,7 @@ export const addNewMessage: RequestHandler = async (req, res, next) => {
 
     const result = await chat.save();
 
-    res.status(200).json({ message: "Message added!" });
+    res.status(200).json({ result: savedMessage });
   } catch (err: any) {
     if (!err.statusCode) {
       err.statusCode = 500;
@@ -169,21 +249,17 @@ export const getAllChats: RequestHandler = async (req, res, next) => {
   try {
     const userId = req.body.userId;
 
-    const userChats = await chatModel
-      .find({
-        participants: userId,
-      })
-      .populate("messages");
+    const user = await userModel.findById(userId).populate("chats");
 
-    if (!userChats) {
+    if (!user) {
       const error: Error = {
-        message: "No chats found!",
-        statusCode: 500,
+        message: "No such user!",
+        statusCode: 404,
       };
       throw error;
     }
 
-    res.status(200).json({ result: userChats });
+    res.status(200).json({ result: user.chats });
   } catch (err: any) {
     if (!err.statusCode) {
       err.statusCode = 500;

@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import postModel from "../models/postModel.js";
 
-export const login: RequestHandler = (req, res, next) => {
+export const login: RequestHandler = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res
@@ -17,63 +17,56 @@ export const login: RequestHandler = (req, res, next) => {
   // reach out to db find the user check the passwords and return token
   const email = req.body.email;
   const password = req.body.password;
-  let loadedUser: any;
 
-  userModel
-    .findOne({ email: email })
-    .then((user) => {
-      if (!user) {
-        const error: Error = {
-          message: "No such user found",
-          statusCode: 404,
-        };
-        throw error;
+  try {
+    const user = await userModel.findOne({ email: email });
+    if (!user) {
+      const error: Error = {
+        message: "No such user found",
+        statusCode: 404,
+      };
+      throw error;
+    }
+
+    const isEqual = await bcrypt.compare(password, user.password);
+    if (!isEqual) {
+      const error: Error = {
+        message: "Passwords do not match",
+        statusCode: 406,
+      };
+      throw error;
+    }
+
+    const token = jwt.sign(
+      {
+        email: user.email,
+        userId: user._id.toString(),
+      },
+      process.env.SECRET_KEY || "supersecretkey",
+      {
+        expiresIn: "3h",
       }
+    );
 
-      // user exists compare passwords
-      loadedUser = user;
-      return bcrypt.compare(password, user.password);
-    })
-    .then((isEqual) => {
-      if (!isEqual) {
-        const error: Error = {
-          message: "Passwords do not match",
-          statusCode: 406,
-        };
-        throw error;
-      }
+    const expirationDate = new Date();
+    expirationDate.setHours(expirationDate.getHours() + 3);
 
-      // passwords match create token and send it to the user
-      const token = jwt.sign(
-        {
-          email: loadedUser.email,
-          userId: loadedUser._id.toString(),
-        },
-        process.env.SECRET_KEY || "supersecretkey",
-        {
-          expiresIn: "3h",
-        }
-      );
-
-      const expirationDate = new Date();
-      expirationDate.setHours(expirationDate.getHours() + 3);
-
-      res.status(200).json({
-        token: token,
-        userId: loadedUser._id.toString(),
-        email: loadedUser.email,
-        expirationDate: expirationDate,
-      });
-    })
-    .catch((err) => {
-      if (!err.statusCode) {
-        err.statusCode = 500;
-      }
-      next(err);
+    res.status(200).json({
+      token: token,
+      userId: user._id.toString(),
+      email: user.email,
+      expirationDate: expirationDate,
+      username: user.username,
     });
+  } catch (err: any) {
+    if (!err.statusCode) {
+      err.statusCode = 500;
+    }
+    next(err);
+  }
 };
 
-export const signup: RequestHandler = (req, res, next) => {
+export const signup: RequestHandler = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res
@@ -82,39 +75,43 @@ export const signup: RequestHandler = (req, res, next) => {
   }
   const email = req.body.email;
   const password = req.body.password;
+  const username = req.body.username;
 
   // see if user already exists
 
-  userModel
-    .findOne({ email: email })
-    .then((user) => {
-      if (user) {
-        const error: Error = {
-          message: "User already exists",
-          statusCode: 406,
-        };
-        throw error;
-      }
+  try {
+    const userWithEmail = await userModel.findOne({ email: email });
+    if (userWithEmail) {
+      const error: Error = {
+        message: "Email already in use",
+        statusCode: 406,
+      };
+      throw error;
+    }
 
-      return bcrypt.hash(password, 12);
-    })
-    .then((hashedPass) => {
-      const newUser = new userModel({
-        email: email,
-        password: hashedPass,
-      });
+    const userWithUsername = await userModel.findOne({ username: username });
+    if (userWithUsername) {
+      const error: Error = {
+        message: "Username already in use",
+        statusCode: 406,
+      };
+      throw error;
+    }
 
-      return newUser.save();
-    })
-    .then((result) => {
-      res.status(200).json({ message: "User created!" });
-    })
-    .catch((err) => {
-      if (!err.statusCode) {
-        err.statusCode = 500;
-      }
-      next(err);
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const newUser = new userModel({
+      email: email,
+      password: hashedPassword,
+      username: username,
     });
+    await newUser.save();
+    res.status(200).json({ message: "User created!" });
+  } catch (err: any) {
+    if (!err.statusCode) {
+      err.statusCode = 500;
+    }
+    next(err);
+  }
 };
 
 export const deleteProfile: RequestHandler = (req, res, next) => {

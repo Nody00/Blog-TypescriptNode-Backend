@@ -25,6 +25,7 @@ router.post(
   [
     body("email").trim().notEmpty().escape().isEmail(),
     body("password").trim().notEmpty().escape().isLength({ min: 7 }),
+    body("username").trim().notEmpty().escape().isLength({ max: 10 }),
   ],
   signup
 );
