@@ -8,6 +8,7 @@ import {
   deleteMessage,
   getChat,
   getAllChats,
+  getAllUsers,
 } from "../controllers/chat.js";
 const router = express.Router();
 
@@ -59,4 +60,6 @@ router.post(
   getAllChats
 );
 
+// route for getting all users
+router.post("/usersAll", isAuth, getAllUsers);
 export default router;

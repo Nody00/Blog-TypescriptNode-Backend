@@ -4,6 +4,7 @@ import { validationResult } from "express-validator/src/validation-result.js";
 import chatModel from "../models/chatModel.js";
 import messageModel from "../models/messageModel.js";
 import userModel from "../models/userModel.js";
+import { ioObject } from "../index.js";
 
 export const createNewChat: RequestHandler = async (req, res, next) => {
   const errors = validationResult(req);
@@ -158,6 +159,11 @@ export const addNewMessage: RequestHandler = async (req, res, next) => {
 
     const savedMessage: any = await newMessage.save();
 
+    ioObject.emit("chat", {
+      message: savedMessage,
+      action: "newMessage",
+    });
+
     chat.messages.push(savedMessage);
 
     const result = await chat.save();
@@ -260,6 +266,19 @@ export const getAllChats: RequestHandler = async (req, res, next) => {
     }
 
     res.status(200).json({ result: user.chats });
+  } catch (err: any) {
+    if (!err.statusCode) {
+      err.statusCode = 500;
+    }
+    next(err);
+  }
+};
+
+export const getAllUsers: RequestHandler = async (req, res, next) => {
+  try {
+    const result = await userModel.find({}, "email username");
+
+    res.status(200).json(result);
   } catch (err: any) {
     if (!err.statusCode) {
       err.statusCode = 500;
